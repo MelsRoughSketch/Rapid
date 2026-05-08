@@ -1,3 +1,5 @@
+[![Test](https://github.com/MelsRoughSketch/Rapid/actions/workflows/rust.yml/badge.svg)](https://github.com/MelsRoughSketch/Rapid/actions/workflows/rust.yml)
+
 # Rapid
 
 Rapid is a native Rust desktop editor for the generated `Rapid.html` document used by this project.
