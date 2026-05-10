@@ -1,6 +1,7 @@
 use crate::model::{Document, ItemKind, Section, Shortcut};
 use egui::{
-    Area, Button, Color32, CornerRadius, DragAndDrop, Frame, Id, Order, Rect, RichText, Stroke, Ui,
+    style::WidgetVisuals, Area, Button, Color32, CornerRadius, DragAndDrop, Frame, Id, Order,
+    Rect, Response, RichText, Stroke, Ui, Vec2, Widget,
 };
 
 const DRAG_AUTO_SCROLL_EDGE: f32 = 56.0;
@@ -91,10 +92,65 @@ enum ButtonRole {
 }
 
 struct ButtonVisuals {
+    inactive: ButtonVisualState,
+    hovered: ButtonVisualState,
+    active: ButtonVisualState,
+    noninteractive: ButtonVisualState,
+    corner_radius: CornerRadius,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct ButtonVisualState {
     fill: Color32,
     stroke: Stroke,
     text: Color32,
-    corner_radius: CornerRadius,
+}
+
+struct StyledButton<'a> {
+    label: &'a str,
+    visuals: ButtonVisuals,
+    min_size: Vec2,
+}
+
+impl Widget for StyledButton<'_> {
+    fn ui(self, ui: &mut Ui) -> Response {
+        let StyledButton {
+            label,
+            visuals,
+            min_size,
+        } = self;
+        let mut style = ui.style().as_ref().clone();
+        apply_button_state(
+            &mut style.visuals.widgets.inactive,
+            visuals.inactive,
+            visuals.corner_radius,
+        );
+        apply_button_state(
+            &mut style.visuals.widgets.hovered,
+            visuals.hovered,
+            visuals.corner_radius,
+        );
+        apply_button_state(
+            &mut style.visuals.widgets.active,
+            visuals.active,
+            visuals.corner_radius,
+        );
+        apply_button_state(
+            &mut style.visuals.widgets.noninteractive,
+            visuals.noninteractive,
+            visuals.corner_radius,
+        );
+
+        ui.scope(|ui| {
+            ui.set_style(style);
+            ui.add(
+                Button::new(label)
+                    .corner_radius(visuals.corner_radius)
+                    .min_size(min_size),
+            )
+        })
+        .inner
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -935,24 +991,24 @@ fn palette_color(index: usize) -> Color32 {
 
 fn button_role_visuals(role: ButtonRole) -> ButtonVisuals {
     match role {
-        ButtonRole::Primary => ButtonVisuals {
-            fill: Color32::from_rgb(44, 56, 78),
-            stroke: Stroke::new(1.0, Color32::from_rgb(92, 110, 144)),
-            text: Color32::from_rgb(232, 237, 247),
-            corner_radius: CornerRadius::same(8),
-        },
-        ButtonRole::Secondary => ButtonVisuals {
-            fill: Color32::from_rgb(26, 30, 38),
-            stroke: Stroke::new(1.0, Color32::from_rgb(72, 80, 92)),
-            text: Color32::from_rgb(215, 220, 228),
-            corner_radius: CornerRadius::same(8),
-        },
-        ButtonRole::Danger => ButtonVisuals {
-            fill: Color32::from_rgb(78, 34, 38),
-            stroke: Stroke::new(1.1, Color32::from_rgb(158, 82, 92)),
-            text: Color32::from_rgb(248, 228, 230),
-            corner_radius: CornerRadius::same(8),
-        },
+        ButtonRole::Primary => button_visuals(
+            Color32::from_rgb(44, 56, 78),
+            Stroke::new(1.0, Color32::from_rgb(92, 110, 144)),
+            Color32::from_rgb(232, 237, 247),
+            CornerRadius::same(8),
+        ),
+        ButtonRole::Secondary => button_visuals(
+            Color32::from_rgb(26, 30, 38),
+            Stroke::new(1.0, Color32::from_rgb(72, 80, 92)),
+            Color32::from_rgb(215, 220, 228),
+            CornerRadius::same(8),
+        ),
+        ButtonRole::Danger => button_visuals(
+            Color32::from_rgb(78, 34, 38),
+            Stroke::new(1.1, Color32::from_rgb(158, 82, 92)),
+            Color32::from_rgb(248, 228, 230),
+            CornerRadius::same(8),
+        ),
     }
 }
 
@@ -960,30 +1016,21 @@ fn action_button_min_size() -> egui::Vec2 {
     egui::vec2(72.0, 30.0)
 }
 
-fn action_button(label: &str, role: ButtonRole) -> Button<'_> {
-    let visuals = button_role_visuals(role);
-    Button::new(RichText::new(label).color(visuals.text))
-        .fill(visuals.fill)
-        .stroke(visuals.stroke)
-        .corner_radius(visuals.corner_radius)
-        .min_size(action_button_min_size())
+fn action_button<'a>(label: &'a str, role: ButtonRole) -> StyledButton<'a> {
+    styled_button(label, button_role_visuals(role), action_button_min_size())
 }
 
-fn button_with_visuals(label: &str, visuals: ButtonVisuals) -> Button<'_> {
-    Button::new(RichText::new(label).color(visuals.text))
-        .fill(visuals.fill)
-        .stroke(visuals.stroke)
-        .corner_radius(visuals.corner_radius)
-        .min_size(egui::vec2(118.0, 32.0))
+fn button_with_visuals<'a>(label: &'a str, visuals: ButtonVisuals) -> StyledButton<'a> {
+    styled_button(label, visuals, egui::vec2(118.0, 32.0))
 }
 
 fn item_add_button_visuals(style: &SectionVisualStyle) -> ButtonVisuals {
-    ButtonVisuals {
-        fill: surface_tint(style.accent, 0.2),
-        stroke: Stroke::new(1.1, soften_color(style.accent, 0.78)),
-        text: soften_color(style.accent, 0.96),
-        corner_radius: CornerRadius::same(14),
-    }
+    button_visuals(
+        surface_tint(style.accent, 0.2),
+        Stroke::new(1.1, soften_color(style.accent, 0.78)),
+        soften_color(style.accent, 0.96),
+        CornerRadius::same(14),
+    )
 }
 
 fn child_section_button_visuals(style: &SectionVisualStyle) -> ButtonVisuals {
@@ -992,36 +1039,97 @@ fn child_section_button_visuals(style: &SectionVisualStyle) -> ButtonVisuals {
 
 fn top_level_add_button_visuals() -> ButtonVisuals {
     let accent = palette_color(0);
-    ButtonVisuals {
-        fill: surface_tint(accent, 0.2),
-        stroke: Stroke::new(1.1, soften_color(accent, 0.78)),
-        text: soften_color(accent, 0.96),
-        corner_radius: CornerRadius::same(14),
-    }
+    button_visuals(
+        surface_tint(accent, 0.2),
+        Stroke::new(1.1, soften_color(accent, 0.78)),
+        soften_color(accent, 0.96),
+        CornerRadius::same(14),
+    )
 }
 
-fn item_add_button<'a>(label: &'a str, style: &SectionVisualStyle) -> Button<'a> {
+fn item_add_button<'a>(label: &'a str, style: &SectionVisualStyle) -> StyledButton<'a> {
     button_with_visuals(label, item_add_button_visuals(style))
 }
 
-fn child_section_button<'a>(label: &'a str, style: &SectionVisualStyle) -> Button<'a> {
+fn child_section_button<'a>(label: &'a str, style: &SectionVisualStyle) -> StyledButton<'a> {
     button_with_visuals(label, child_section_button_visuals(style))
 }
 
-fn top_level_add_button(label: &str) -> Button<'_> {
+fn top_level_add_button<'a>(label: &'a str) -> StyledButton<'a> {
     button_with_visuals(label, top_level_add_button_visuals())
 }
 
-pub fn primary_action_button(label: &str) -> Button<'_> {
+pub fn primary_action_button(label: &str) -> impl Widget + '_ {
     action_button(label, ButtonRole::Primary)
 }
 
-pub fn secondary_action_button(label: &str) -> Button<'_> {
+pub fn secondary_action_button(label: &str) -> impl Widget + '_ {
     action_button(label, ButtonRole::Secondary)
 }
 
-pub fn danger_action_button(label: &str) -> Button<'_> {
+pub fn danger_action_button(label: &str) -> impl Widget + '_ {
     action_button(label, ButtonRole::Danger)
+}
+
+fn styled_button<'a>(label: &'a str, visuals: ButtonVisuals, min_size: Vec2) -> StyledButton<'a> {
+    StyledButton {
+        label,
+        visuals,
+        min_size,
+    }
+}
+
+fn button_visuals(
+    fill: Color32,
+    stroke: Stroke,
+    text: Color32,
+    corner_radius: CornerRadius,
+) -> ButtonVisuals {
+    let inactive = ButtonVisualState { fill, stroke, text };
+    let hovered = ButtonVisualState {
+        fill: mix_color(fill, text, 0.14),
+        stroke: Stroke::new(
+            stroke.width + 0.2,
+            mix_color(stroke.color, text, 0.18),
+        ),
+        text: mix_color(text, Color32::WHITE, 0.08),
+    };
+    let active = ButtonVisualState {
+        fill: mix_color(fill, Color32::BLACK, 0.28),
+        stroke: Stroke::new(
+            stroke.width + 0.55,
+            mix_color(stroke.color, Color32::WHITE, 0.16),
+        ),
+        text: mix_color(text, Color32::WHITE, 0.12),
+    };
+    let noninteractive = ButtonVisualState {
+        fill: mix_color(fill, Color32::from_gray(30), 0.35),
+        stroke: Stroke::new(
+            stroke.width,
+            mix_color(stroke.color, Color32::from_gray(96), 0.45),
+        ),
+        text: mix_color(text, Color32::from_gray(132), 0.35),
+    };
+
+    ButtonVisuals {
+        inactive,
+        hovered,
+        active,
+        noninteractive,
+        corner_radius,
+    }
+}
+
+fn apply_button_state(
+    visuals: &mut WidgetVisuals,
+    state: ButtonVisualState,
+    corner_radius: CornerRadius,
+) {
+    visuals.weak_bg_fill = state.fill;
+    visuals.bg_fill = state.fill;
+    visuals.bg_stroke = state.stroke;
+    visuals.corner_radius = corner_radius;
+    visuals.fg_stroke = Stroke::new(state.stroke.width, state.text);
 }
 
 fn mix_color(base: Color32, accent: Color32, amount: f32) -> Color32 {
@@ -1289,9 +1397,10 @@ mod tests {
         let secondary = button_role_visuals(ButtonRole::Secondary);
         let danger = button_role_visuals(ButtonRole::Danger);
 
-        assert_ne!(primary.fill, secondary.fill);
-        assert_ne!(danger.fill, secondary.fill);
-        assert!(primary.stroke.width >= 1.0);
+        assert_ne!(primary.inactive.fill, secondary.inactive.fill);
+        assert_ne!(danger.inactive.fill, secondary.inactive.fill);
+        assert_ne!(primary.active.fill, primary.inactive.fill);
+        assert!(primary.active.stroke.width > primary.inactive.stroke.width);
         assert_eq!(danger.corner_radius.at_least(8), danger.corner_radius);
     }
 
@@ -1325,9 +1434,11 @@ mod tests {
         let style = top_level_section_style(1, &Section::new("Alpha"));
         let visuals = item_add_button_visuals(&style);
 
-        assert_eq!(visuals.fill, surface_tint(style.accent, 0.2));
-        assert_eq!(visuals.stroke.color, soften_color(style.accent, 0.78));
-        assert_eq!(visuals.text, soften_color(style.accent, 0.96));
+        assert_eq!(visuals.inactive.fill, surface_tint(style.accent, 0.2));
+        assert_eq!(visuals.inactive.stroke.color, soften_color(style.accent, 0.78));
+        assert_eq!(visuals.inactive.text, soften_color(style.accent, 0.96));
+        assert_ne!(visuals.active.fill, visuals.inactive.fill);
+        assert!(visuals.active.stroke.width > visuals.inactive.stroke.width);
     }
 
     #[test]
@@ -1336,17 +1447,25 @@ mod tests {
         let item_visuals = item_add_button_visuals(&style);
         let child_visuals = child_section_button_visuals(&style);
 
-        assert_eq!(item_visuals.fill, child_visuals.fill);
-        assert_eq!(item_visuals.stroke.color, child_visuals.stroke.color);
-        assert_eq!(item_visuals.text, child_visuals.text);
+        assert_eq!(item_visuals.inactive.fill, child_visuals.inactive.fill);
+        assert_eq!(
+            item_visuals.inactive.stroke.color,
+            child_visuals.inactive.stroke.color
+        );
+        assert_eq!(item_visuals.inactive.text, child_visuals.inactive.text);
+        assert_eq!(item_visuals.active.fill, child_visuals.active.fill);
     }
 
     #[test]
     fn top_level_add_button_visuals_use_toolbar_accent() {
         let visuals = top_level_add_button_visuals();
 
-        assert_eq!(visuals.fill, surface_tint(palette_color(0), 0.2));
-        assert_eq!(visuals.stroke.color, soften_color(palette_color(0), 0.78));
+        assert_eq!(visuals.inactive.fill, surface_tint(palette_color(0), 0.2));
+        assert_eq!(
+            visuals.inactive.stroke.color,
+            soften_color(palette_color(0), 0.78)
+        );
+        assert_ne!(visuals.hovered.fill, visuals.inactive.fill);
     }
 
     #[test]
