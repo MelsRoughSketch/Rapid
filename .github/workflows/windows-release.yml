@@ -1,0 +1,60 @@
+name: Windows Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Validate semantic version tag
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if [[ ! "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "Tag '$tag' is not a strict semantic version (expected vMAJOR.MINOR.PATCH)."
+            exit 1
+          fi
+
+      - name: Ensure tag commit is on main
+        shell: bash
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" "origin/main"; then
+            echo "Tagged commit $GITHUB_SHA is not contained in origin/main."
+            exit 1
+          fi
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-gnu
+
+      - name: Install MinGW
+        shell: powershell
+        run: choco install mingw -y
+
+      - name: Build Windows executable
+        shell: bash
+        run: cargo build --release --target x86_64-pc-windows-gnu
+
+      - name: Create GitHub release and upload asset
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "target/x86_64-pc-windows-gnu/release/Rapid.exe" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes
