@@ -1,4 +1,5 @@
 [![Test](https://github.com/MelsRoughSketch/Rapid/actions/workflows/rust.yml/badge.svg)](https://github.com/MelsRoughSketch/Rapid/actions/workflows/rust.yml)
+[![Windows Release](https://github.com/MelsRoughSketch/Rapid/actions/workflows/windows-release.yml/badge.svg)](https://github.com/MelsRoughSketch/Rapid/actions/workflows/windows-release.yml)
 
 # Rapid
 
