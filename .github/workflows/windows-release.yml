@@ -1,9 +1,9 @@
 name: Windows Release
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
+  release:
+    types:
+      - published
 
 permissions:
   contents: write
@@ -16,12 +16,13 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
         with:
+          ref: refs/tags/${{ github.event.release.tag_name }}
           fetch-depth: 0
 
       - name: Validate semantic version tag
         shell: bash
         run: |
-          tag="${GITHUB_REF_NAME}"
+          tag="${{ github.event.release.tag_name }}"
           if [[ ! "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
             echo "Tag '$tag' is not a strict semantic version (expected vMAJOR.MINOR.PATCH)."
             exit 1
@@ -49,12 +50,11 @@ jobs:
         shell: bash
         run: cargo build --release --target x86_64-pc-windows-gnu
 
-      - name: Create GitHub release and upload asset
+      - name: Upload asset to existing GitHub release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
+          gh release upload "${{ github.event.release.tag_name }}" \
             "target/x86_64-pc-windows-gnu/release/Rapid.exe" \
-            --title "$GITHUB_REF_NAME" \
-            --generate-notes
+            --clobber
