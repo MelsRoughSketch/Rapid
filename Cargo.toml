@@ -8,5 +8,5 @@ name = "Rapid"
 path = "src/main.rs"
 
 [dependencies]
-eframe = "0.34"
+eframe = "0.35"
 egui = "0.34"
