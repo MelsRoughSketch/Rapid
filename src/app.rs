@@ -1,4 +1,5 @@
 use crate::{html, model::Document, ui};
+use eframe::egui;
 use std::path::Path;
 
 pub struct EditorApp {
@@ -15,7 +16,7 @@ impl Default for EditorApp {
 impl EditorApp {
     fn from_path(path: &Path) -> Self {
         let mut app = Self {
-            document: Document::default_document(),
+            document: Document::default(),
             status_message: None,
         };
         app.load_from_path(path);
@@ -29,7 +30,7 @@ impl EditorApp {
                 self.status_message = Some("loaded.".into());
             }
             Err(html::HtmlError::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => {
-                self.document = Document::default_document();
+                self.document = Document::default();
                 self.status_message = Some(
                     "warning: Rapid.html was not found, so an empty document was loaded.".into(),
                 );

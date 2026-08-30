@@ -1,5 +1,7 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 
+use eframe::egui;
+
 mod app;
 mod fonts;
 mod html;

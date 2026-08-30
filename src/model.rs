@@ -5,7 +5,7 @@ fn next_id() -> u64 {
     NEXT_ID.fetch_add(1, Ordering::Relaxed)
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Document {
     pub sections: Vec<Section>,
 }
@@ -71,12 +71,6 @@ impl Shortcut {
 }
 
 impl Document {
-    pub fn default_document() -> Self {
-        Self {
-            sections: Vec::new(),
-        }
-    }
-
     pub fn move_item(&mut self, item_id: u64, target_section_id: u64, target_index: usize) -> bool {
         let Some((source_section_id, source_index)) = find_item_location(&self.sections, item_id)
         else {
@@ -97,12 +91,11 @@ impl Document {
             return false;
         };
 
-        insert_item(
-            &mut self.sections,
-            target_section_id,
-            adjusted_target_index,
-            item,
-        )
+        let section = find_section_mut(&mut self.sections, target_section_id)
+            .expect("target section was validated before removal");
+        let index = adjusted_target_index.min(section.items.len());
+        section.items.insert(index, item);
+        true
     }
 
     pub fn move_section(
@@ -138,12 +131,16 @@ impl Document {
             return false;
         };
 
-        insert_section(
-            &mut self.sections,
-            target_parent_id,
-            adjusted_target_index,
-            section,
-        )
+        let target = match target_parent_id {
+            Some(parent_id) => {
+                &mut find_section_mut(&mut self.sections, parent_id)
+                    .expect("target parent was validated before removal")
+                    .sections
+            }
+            None => &mut self.sections,
+        };
+        target.insert(adjusted_target_index.min(target.len()), section);
+        true
     }
 }
 
@@ -154,42 +151,6 @@ impl Section {
             title: title.into(),
             sections: Vec::new(),
             items: Vec::new(),
-        }
-    }
-
-    pub fn add_child_section(&mut self, title: impl Into<String>) {
-        self.sections.push(Section::new(title));
-    }
-
-    pub fn add_text_item(&mut self) {
-        self.items.push(Item::text(""));
-    }
-
-    pub fn add_link_item(&mut self) {
-        self.items.push(Item::link("", "", Shortcut::None));
-    }
-
-    pub fn add_multi_link_item(&mut self) {
-        self.items.push(Item::multi_link("", "", Shortcut::Alt));
-    }
-
-    pub fn add_copy_button_item(&mut self) {
-        self.items.push(Item::copy_button("", ""));
-    }
-
-    pub fn add_line_break_item(&mut self) {
-        self.items.push(Item::line_break());
-    }
-
-    pub fn move_item_down(&mut self, index: usize) {
-        if index + 1 < self.items.len() {
-            self.items.swap(index, index + 1);
-        }
-    }
-
-    pub fn move_item_up(&mut self, index: usize) {
-        if index > 0 && index < self.items.len() {
-            self.items.swap(index, index - 1);
         }
     }
 }
@@ -258,6 +219,18 @@ fn find_section(sections: &[Section], section_id: u64) -> Option<&Section> {
     None
 }
 
+pub(crate) fn find_section_mut(sections: &mut [Section], section_id: u64) -> Option<&mut Section> {
+    for section in sections {
+        if section.id == section_id {
+            return Some(section);
+        }
+        if let Some(found) = find_section_mut(&mut section.sections, section_id) {
+            return Some(found);
+        }
+    }
+    None
+}
+
 fn section_contains(section: &Section, section_id: u64) -> bool {
     section.id == section_id
         || section
@@ -308,37 +281,6 @@ fn remove_item(sections: &mut Vec<Section>, item_id: u64) -> Option<Item> {
     None
 }
 
-fn insert_item(
-    sections: &mut Vec<Section>,
-    target_section_id: u64,
-    target_index: usize,
-    item: Item,
-) -> bool {
-    let mut item = Some(item);
-    insert_item_inner(sections, target_section_id, target_index, &mut item)
-}
-
-fn insert_item_inner(
-    sections: &mut Vec<Section>,
-    target_section_id: u64,
-    target_index: usize,
-    item: &mut Option<Item>,
-) -> bool {
-    for section in sections {
-        if section.id == target_section_id {
-            let index = target_index.min(section.items.len());
-            section
-                .items
-                .insert(index, item.take().expect("item inserted once"));
-            return true;
-        }
-        if insert_item_inner(&mut section.sections, target_section_id, target_index, item) {
-            return true;
-        }
-    }
-    false
-}
-
 fn remove_section(sections: &mut Vec<Section>, section_id: u64) -> Option<Section> {
     if let Some(index) = sections.iter().position(|section| section.id == section_id) {
         return Some(sections.remove(index));
@@ -351,125 +293,9 @@ fn remove_section(sections: &mut Vec<Section>, section_id: u64) -> Option<Sectio
     None
 }
 
-fn insert_section(
-    sections: &mut Vec<Section>,
-    target_parent_id: Option<u64>,
-    target_index: usize,
-    section: Section,
-) -> bool {
-    if let Some(target_parent_id) = target_parent_id {
-        let mut section = Some(section);
-        insert_section_inner(sections, target_parent_id, target_index, &mut section)
-    } else {
-        let index = target_index.min(sections.len());
-        sections.insert(index, section);
-        true
-    }
-}
-
-fn insert_section_inner(
-    sections: &mut Vec<Section>,
-    target_parent_id: u64,
-    target_index: usize,
-    section: &mut Option<Section>,
-) -> bool {
-    for current in sections {
-        if current.id == target_parent_id {
-            let index = target_index.min(current.sections.len());
-            current
-                .sections
-                .insert(index, section.take().expect("section inserted once"));
-            return true;
-        }
-        if insert_section_inner(
-            &mut current.sections,
-            target_parent_id,
-            target_index,
-            section,
-        ) {
-            return true;
-        }
-    }
-    false
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn default_document_starts_empty() {
-        let document = Document::default_document();
-        assert!(document.sections.is_empty());
-    }
-
-    #[test]
-    fn add_child_section_appends_to_parent() {
-        let mut section = Section::new("Parent");
-        section.add_child_section("Child");
-        assert_eq!(section.sections.len(), 1);
-        assert_eq!(section.sections[0].title, "Child");
-    }
-
-    #[test]
-    fn add_text_item_appends_item() {
-        let mut section = Section::new("Parent");
-        section.add_text_item();
-        assert_eq!(section.items.len(), 1);
-    }
-
-    #[test]
-    fn add_link_item_appends_empty_link_item() {
-        let mut section = Section::new("Parent");
-        section.add_link_item();
-
-        assert_eq!(section.items.len(), 1);
-        match &section.items[0].kind {
-            ItemKind::Link {
-                text,
-                url,
-                shortcut,
-            } => {
-                assert!(text.is_empty());
-                assert!(url.is_empty());
-                assert_eq!(*shortcut, Shortcut::None);
-            }
-            other => panic!("expected link item, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn add_multi_link_item_defaults_to_python_alt_shortcut() {
-        let mut section = Section::new("Parent");
-        section.add_multi_link_item();
-
-        assert_eq!(section.items.len(), 1);
-        match &section.items[0].kind {
-            ItemKind::MultiLink {
-                text,
-                urls,
-                shortcut,
-            } => {
-                assert!(text.is_empty());
-                assert!(urls.is_empty());
-                assert_eq!(*shortcut, Shortcut::Alt);
-            }
-            other => panic!("expected multi-link item, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn move_item_down_swaps_neighbors() {
-        let mut section = Section::new("Parent");
-        section.items.push(Item::text("A"));
-        section.items.push(Item::text("B"));
-        section.move_item_down(0);
-
-        match &section.items[1].kind {
-            ItemKind::Text { text } => assert_eq!(text, "A"),
-            other => panic!("unexpected item: {other:?}"),
-        }
-    }
 
     #[test]
     fn move_item_to_other_section_inserts_at_requested_position() {
