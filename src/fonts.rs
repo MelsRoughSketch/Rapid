@@ -1,4 +1,4 @@
-use egui::{FontData, FontDefinitions, FontFamily};
+use eframe::egui::{FontData, FontDefinitions, FontFamily};
 use std::sync::Arc;
 
 const APP_FONT_NAME: &str = "app_japanese";
@@ -30,7 +30,7 @@ pub fn app_font_definitions() -> FontDefinitions {
 #[cfg(test)]
 mod tests {
     use super::app_font_definitions;
-    use egui::FontFamily;
+    use eframe::egui::FontFamily;
 
     #[test]
     fn app_font_definitions_prioritize_custom_font_for_all_ui_families() {

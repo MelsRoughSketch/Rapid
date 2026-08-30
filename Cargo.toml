@@ -9,4 +9,3 @@ path = "src/main.rs"
 
 [dependencies]
 eframe = "0.34"
-egui = "0.34"

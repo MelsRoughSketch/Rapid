@@ -180,7 +180,7 @@ pub fn parse_document(input: &str) -> Result<Document, HtmlError> {
             ParsedLine::ManualLineBreak => {
                 current_section_mut(&mut stack, "manual line break outside section")?
                     .items
-                    .push(parsed_line_break_item())
+                    .push(Item::line_break())
             }
             ParsedLine::CloseSection => close_section(&mut stack, &mut root_sections)?,
         }
@@ -283,38 +283,13 @@ fn render_section(
     out.push_str("\n<br><br>\n");
 }
 
-fn shortcut_label(shortcut: Shortcut) -> Option<&'static str> {
+fn shortcut_label(shortcut: Shortcut) -> Option<String> {
     match shortcut {
         Shortcut::None => None,
-        Shortcut::Key('A') => Some("A"),
-        Shortcut::Key('B') => Some("B"),
-        Shortcut::Key('C') => Some("C"),
-        Shortcut::Key('D') => Some("D"),
-        Shortcut::Key('E') => Some("E"),
-        Shortcut::Key('F') => Some("F"),
-        Shortcut::Key('G') => Some("G"),
-        Shortcut::Key('H') => Some("H"),
-        Shortcut::Key('I') => Some("I"),
-        Shortcut::Key('J') => Some("J"),
-        Shortcut::Key('K') => Some("K"),
-        Shortcut::Key('L') => Some("L"),
-        Shortcut::Key('M') => Some("M"),
-        Shortcut::Key('N') => Some("N"),
-        Shortcut::Key('O') => Some("O"),
-        Shortcut::Key('P') => Some("P"),
-        Shortcut::Key('Q') => Some("Q"),
-        Shortcut::Key('R') => Some("R"),
-        Shortcut::Key('S') => Some("S"),
-        Shortcut::Key('T') => Some("T"),
-        Shortcut::Key('U') => Some("U"),
-        Shortcut::Key('V') => Some("V"),
-        Shortcut::Key('W') => Some("W"),
-        Shortcut::Key('X') => Some("X"),
-        Shortcut::Key('Y') => Some("Y"),
-        Shortcut::Key('Z') => Some("Z"),
+        Shortcut::Key(key) if key.is_ascii_uppercase() => Some(key.to_string()),
         Shortcut::Key(_) => None,
-        Shortcut::Alt => Some("Alt"),
-        Shortcut::ShiftSpace => Some("Shift + Space"),
+        Shortcut::Alt => Some("Alt".into()),
+        Shortcut::ShiftSpace => Some("Shift + Space".into()),
     }
 }
 
@@ -565,38 +540,15 @@ fn write_script_body(out: &mut String, shortcuts: &str) {
     out.push_str("};\n");
 }
 
-fn shortcut_condition(shortcut: Shortcut) -> Option<&'static str> {
+fn shortcut_condition(shortcut: Shortcut) -> Option<String> {
     match shortcut {
         Shortcut::None => None,
-        Shortcut::Key('A') => Some("d.keyCode == 65"),
-        Shortcut::Key('B') => Some("d.keyCode == 66"),
-        Shortcut::Key('C') => Some("d.keyCode == 67"),
-        Shortcut::Key('D') => Some("d.keyCode == 68"),
-        Shortcut::Key('E') => Some("d.keyCode == 69"),
-        Shortcut::Key('F') => Some("d.keyCode == 70"),
-        Shortcut::Key('G') => Some("d.keyCode == 71"),
-        Shortcut::Key('H') => Some("d.keyCode == 72"),
-        Shortcut::Key('I') => Some("d.keyCode == 73"),
-        Shortcut::Key('J') => Some("d.keyCode == 74"),
-        Shortcut::Key('K') => Some("d.keyCode == 75"),
-        Shortcut::Key('L') => Some("d.keyCode == 76"),
-        Shortcut::Key('M') => Some("d.keyCode == 77"),
-        Shortcut::Key('N') => Some("d.keyCode == 78"),
-        Shortcut::Key('O') => Some("d.keyCode == 79"),
-        Shortcut::Key('P') => Some("d.keyCode == 80"),
-        Shortcut::Key('Q') => Some("d.keyCode == 81"),
-        Shortcut::Key('R') => Some("d.keyCode == 82"),
-        Shortcut::Key('S') => Some("d.keyCode == 83"),
-        Shortcut::Key('T') => Some("d.keyCode == 84"),
-        Shortcut::Key('U') => Some("d.keyCode == 85"),
-        Shortcut::Key('V') => Some("d.keyCode == 86"),
-        Shortcut::Key('W') => Some("d.keyCode == 87"),
-        Shortcut::Key('X') => Some("d.keyCode == 88"),
-        Shortcut::Key('Y') => Some("d.keyCode == 89"),
-        Shortcut::Key('Z') => Some("d.keyCode == 90"),
+        Shortcut::Key(key) if key.is_ascii_uppercase() => {
+            Some(format!("d.keyCode == {}", u32::from(key)))
+        }
         Shortcut::Key(_) => None,
-        Shortcut::Alt => Some("d.altKey"),
-        Shortcut::ShiftSpace => Some("d.keyCode == 32 && d.shiftKey"),
+        Shortcut::Alt => Some("d.altKey".into()),
+        Shortcut::ShiftSpace => Some("d.keyCode == 32 && d.shiftKey".into()),
     }
 }
 
@@ -1236,10 +1188,6 @@ fn invalid_structure(message: impl Into<String>) -> HtmlError {
     HtmlError::InvalidStructure(message.into())
 }
 
-fn parsed_line_break_item() -> Item {
-    Item::line_break()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1300,8 +1248,11 @@ mod tests {
 
     #[test]
     fn generate_single_link_html() {
-        let document =
-            document_with_items(vec![link_item("Open", "https://example.com", Shortcut::None)]);
+        let document = document_with_items(vec![link_item(
+            "Open",
+            "https://example.com",
+            Shortcut::None,
+        )]);
 
         let html = render_document(&document);
         assert!(html.contains("<html lang=\"ja\">"));
@@ -1358,8 +1309,11 @@ mod tests {
 
     #[test]
     fn generate_keyed_link_includes_shortcut_script() {
-        let document =
-            document_with_items(vec![link_item("Open", "https://example.com", Shortcut::Key('A'))]);
+        let document = document_with_items(vec![link_item(
+            "Open",
+            "https://example.com",
+            Shortcut::Key('A'),
+        )]);
 
         let html = render_document(&document);
         assert!(html.contains("<span class=\"key-viewer\">[A]</span>"));
@@ -1401,8 +1355,11 @@ mod tests {
 
     #[test]
     fn generate_python_compatible_single_key_shortcut() {
-        let document =
-            document_with_items(vec![link_item("Open", "https://example.com", Shortcut::Key('A'))]);
+        let document = document_with_items(vec![link_item(
+            "Open",
+            "https://example.com",
+            Shortcut::Key('A'),
+        )]);
 
         let html = render_document(&document);
         assert!(html.contains("<span class=\"key-viewer\">[A]</span>"));
@@ -1653,7 +1610,6 @@ mod tests {
         }
     }
 
-
     #[test]
     fn parse_document_preserves_section_title_without_special_cases() {
         let html = generated_html(
@@ -1690,8 +1646,7 @@ mod tests {
 
     #[test]
     fn parse_document_rejects_summary_outside_section() {
-        let html =
-            generated_html("<summary class=\"summary\">Root</summary>", "");
+        let html = generated_html("<summary class=\"summary\">Root</summary>", "");
 
         let error = parse_document(&html).unwrap_err();
         assert_eq!(
@@ -1775,7 +1730,7 @@ mod tests {
         let temp_dir = std::env::temp_dir().join(format!("editor-rust-{}", std::process::id()));
         std::fs::create_dir_all(&temp_dir).unwrap();
         let path = temp_dir.join("Rapid.html");
-        let document = Document::default_document();
+        let document = Document::default();
 
         save_document_to_path(&document, &path).unwrap();
 
